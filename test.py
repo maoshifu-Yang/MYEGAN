@@ -31,3 +31,11 @@ print(data[:,0])
 
 a = 10
 print(a//2)
+#%%
+import torch
+x = torch.tensor([[2,3],[3,4]])
+
+print(x.shape)
+#%%
+x =  x.view(-1,4)
+print(x)
