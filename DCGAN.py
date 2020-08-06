@@ -158,7 +158,7 @@ class DCGAN(object):
                     self.D_optimizer.step()
 
                     #update G network
-
+                    z_ = torch.rand((self.batch_size, self.z_dim)).view(-1, 100, 1, 1)
                     self.G_optimizer.zero_grad()
 
                     G_ = self.G(z_)
