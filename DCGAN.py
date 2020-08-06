@@ -149,7 +149,7 @@ class DCGAN(object):
 
                     D_fake_loss = self.BCE_loss(D_fake,self.y_fake_)
 
-                    print('update discriminator D_shape is',D_fake.shape)
+                   # print('update discriminator D_shape is',D_fake.shape)
 
                     D_loss = D_real_loss + D_fake_loss
                     self.train_hist['D_loss'].append(D_loss.item())
@@ -165,8 +165,8 @@ class DCGAN(object):
                     D_fake = self.D(G_).squeeze()
 
 
-                    print('D_fake shape is D(G_)' ,D_fake.shape)
-                    print('y_real shape is',self.y_real_.shape)
+                  #  print('D_fake shape is D(G_)' ,D_fake.shape)
+                  #  print('y_real shape is',self.y_real_.shape)
 
                     G_loss = self.BCE_loss(D_fake,self.y_real_)
 
