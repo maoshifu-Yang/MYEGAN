@@ -39,3 +39,9 @@ print(x.shape)
 #%%
 x =  x.view(-1,4)
 print(x)
+#%%
+import torch
+a = torch.Tensor([[2,3],[3,4],[4,5]])
+print(a)
+b = a.reshape(1,6)
+print(b)

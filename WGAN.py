@@ -140,8 +140,10 @@ class WGAN_GP(object):
 
                     # update D network
                     self.D_optimizer.zero_grad()
+                    print(x_.size())
 
                     D_real = self.D(x_)
+                    print(D_real)
                     D_real_loss = -torch.mean(D_real)
 
                     G_ = self.G(z_)

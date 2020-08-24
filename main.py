@@ -1,6 +1,11 @@
 from WGAN import WGAN_GP
 from DCGAN import DCGAN
+from EBGAN import EBGAN
+from BEGAN import BEGAN
+from BEGAN_TOY import BEGAN_TOY
+from EGANMODEL import EGANMODEL
 import argparse, os, torch
+from GAN import GAN
 def parse_args():
     desc = "Pytorch implementation of GAN collections"
     parser = argparse.ArgumentParser(description=desc)
@@ -8,14 +13,14 @@ def parse_args():
     parser.add_argument('--gan_type', type=str, default='GAN',
                         choices=['GAN', 'CGAN', 'infoGAN', 'ACGAN', 'EBGAN', 'BEGAN', 'WGAN', 'WGAN_GP', 'DRAGAN', 'LSGAN','DCGAN'],
                         help='The type of GAN')
-    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'fashion-mnist', 'cifar10', 'cifar100', 'svhn', 'stl10', 'lsun-bed'],
+    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'fashion-mnist', 'cifar10', 'cifar100', 'svhn', 'stl10', 'lsun-bed','toy-25G'],
                         help='The name of dataset')
     parser.add_argument('--split', type=str, default='', help='The split flag for svhn and stl10')
-    parser.add_argument('--epoch', type=int, default=5, help='The number of epochs to run')
-    # parser.add_argument('--batch_size', type=int, default=64, help='The size of batch')
-    parser.add_argument('--batch_size', type=int, default=128, help='The size of batch')
-    #parser.add_argument('--input_size', type=int, default=28, help='The size of input image')
-    parser.add_argument('--input_size', type=int, default=64, help='The size of input image')
+    parser.add_argument('--epoch', type=int, default=50, help='The number of epochs to run')
+    parser.add_argument('--batch_size', type=int, default=64, help='The size of batch')
+    # parser.add_argument('--batch_size', type=int, default=128, help='The size of batch')  #DC
+    parser.add_argument('--input_size', type=int, default=28, help='The size of input image')
+    # parser.add_argument('--input_size', type=int, default=64, help='The size of input image')
     parser.add_argument('--save_dir', type=str, default='models',
                         help='Directory name to save the model')
     parser.add_argument('--result_dir', type=str, default='results', help='Directory name to save the generated images')
@@ -65,7 +70,7 @@ def main():
 
     if args.benchmark_mode:
         torch.backends.cudnn.benchmark = True
-        gan = DCGAN(args)
+        gan = EGANMODEL(args)
         # declare instance for GAN
         # launch the graph in a session
 
