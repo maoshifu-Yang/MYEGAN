@@ -184,11 +184,11 @@ class EGANMODEL(object):
                             # print(self.gen_imgs.size(),'gen imgs size')
 
 
-                            D_real = self.D(x_)
-                            D_real_loss = self.BCE(D_real,self.y_real_)
-                            D_fake = self.D(self.gen_imgs)
+                            self.real_out = self.D(x_)
+                            D_real_loss = self.BCE(self.real_out,self.y_real_)
+                            self.fake_out = self.D(self.gen_imgs)
                             # print('D_fake is',D_fake.size())
-                            D_fake_loss = self.BCE(D_fake,self.y_fake_)
+                            D_fake_loss = self.BCE(self.fake_out,self.y_fake_)
                             D_loss = D_real_loss+D_fake_loss
                             D_loss.backward()
                             self.D_optimizer.step()
@@ -324,17 +324,28 @@ class EGANMODEL(object):
     def fitness_score(self,eval_fake_imgs,eval_real_imgs):
         eval_fake = self.D(eval_fake_imgs)
         eval_real = self.D(eval_real_imgs)
+
+        fake_loss = self.BCE(eval_fake,self.y_fake_)
+        real_loss = self.BCE(eval_real,self.y_real_)
+
+        D_loss_score = fake_loss + real_loss
+
         #quality fitness score
         Fq = nn.functional.sigmoid(eval_fake).data.mean().cpu().numpy()
 
+
         #Diversity fitness score
 
-        eval_D_fake = self.D(eval_fake_imgs)
-        eval_D_real = self.D(eval_real_imgs)
-        eval_D = eval_D_fake+eval_D_real
 
-        gradients = torch.autograd.grad(outputs = eval_D,inputs = self.D.parameters(),grad_outputs=torch.ones(eval_D.size()).to(self.device),
+        eval_D = eval_fake + eval_real
+
+
+
+
+        gradients = torch.autograd.grad(outputs = D_loss_score,inputs = self.D.parameters(),grad_outputs=torch.ones(D_loss_score.size()).to(self.device),
                                         create_graph=True,retain_graph=True,only_inputs=True)
+
+
 
         with torch.no_grad():
             for i,grad in enumerate(gradients):
@@ -346,7 +357,7 @@ class EGANMODEL(object):
         return Fq,Fd
 
 
-    def G_loss(self,Dfake,Dreal,loss_type):
+    def G_loss(self,Dfake,loss_type):
 
         if loss_type == 'LS':
             gloss = self.MSE_loss(Dfake,self.y_real_)
@@ -377,22 +388,25 @@ class EGANMODEL(object):
 
         for i in range(self.candinum):
             for j, criterionG in enumerate(self.loss_mode):
+                print('G loss is',criterionG)
                 self.G.load_state_dict(self.candis[i])
                 self.G_optimizer.load_state_dict(self.opt_candis[i])
                 self.G_optimizer.zero_grad()
-                gen_img = self.G(z_)
+                self.gen_imgs = self.G(z_)
                 # print(gen_img)
-                D_fake = self.D(gen_img)
-
-                D_real = self.D(inputimage)
+                self.fake_out = self.D(self.gen_imgs)
 
 
-                g_loss = self.G_loss(D_fake,D_real,criterionG)
+
+
+                g_loss = self.G_loss(self.fake_out,criterionG)
                 g_loss.backward()
                 self.G_optimizer.step()
 
                 with torch.no_grad():
                     eval_fake_imgs = self.G(z_)
+
+
 
                 Fq,Fd = self.fitness_score(eval_fake_imgs,inputimage)
 

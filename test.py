@@ -45,3 +45,13 @@ a = torch.Tensor([[2,3],[3,4],[4,5]])
 print(a)
 b = a.reshape(1,6)
 print(b)
+
+
+#%%
+import torch
+import torch.nn as nn
+a = nn.BCELoss()
+b = torch.tensor([[0.1,0.2],[0.1,0.2]]).cuda()
+c = torch.tensor([[0.1,0.2],[0.1,0.2]]).cuda()
+
+print(a(b,c))
