@@ -3,6 +3,7 @@ import numpy as np
 import torch.nn as nn
 import torch.optim as optim
 from dataloader import dataloader
+from inception_score import inception_score
 
 class generator(nn.Module):
     # Network Architecture is exactly same as in infoGAN (https://arxiv.org/abs/1606.03657)
@@ -219,6 +220,8 @@ class BEGAN(object):
         print("Avg one epoch time: %.2f, total %d epochs time: %.2f" % (np.mean(self.train_hist['per_epoch_time']),
               self.epoch, self.train_hist['total_time'][0]))
         print("Training finish!... save training results")
+        self.IS()
+
 
         self.save()
         utilis.generate_animation(self.result_dir + '/' + self.dataset + '/' + self.model_name + '/' + self.model_name,
@@ -271,3 +274,12 @@ class BEGAN(object):
 
         self.G.load_state_dict(torch.load(os.path.join(save_dir, self.model_name + '_G.pkl')))
         self.D.load_state_dict(torch.load(os.path.join(save_dir, self.model_name + '_D.pkl')))
+
+    def IS(self):
+        #先生成图片
+        imgs = []
+        for _ in range(5000):
+            sample_z_ = torch.rand((self.batch_size, self.z_dim))
+            sample_z_ = sample_z_.cuda()
+            imgs.append(self.G(sample_z_))
+        print('The inception soore is', inception_score(imgs,cuda=True,batch_size=self.batch_size,resize=True,splits=10))

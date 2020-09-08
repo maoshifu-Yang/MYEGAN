@@ -5,6 +5,8 @@ import torch.optim as optim
 from torch.autograd import grad
 from dataloader import dataloader
 import copy
+import matplotlib.pyplot as plt
+import random
 
 import torchvision
 #%%
@@ -20,27 +22,18 @@ class generator(nn.Module):
         self.input_size = input_size
 
         self.fc = nn.Sequential(
-            nn.Linear(self.input_dim,1024),
-            nn.BatchNorm1d(1024),
-            nn.ReLU(),
-            nn.Linear(1024,128*(self.input_size//4)*(self.input_size//4)),
-            nn.BatchNorm1d(128*(self.input_size//4)*(self.input_size//4)),
-            nn.ReLU(),
+            nn.Linear(self.input_dim, 128),
+            nn.Tanh(),
+            nn.Linear(128,128),
+            nn.Tanh(),
+            nn.Linear(128, 2),
         )
-        self.deconv = nn.Sequential(
-            nn.ConvTranspose2d(128,64,4,2,1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.ConvTranspose2d(64,self.output_dim,4,2,1),
-            nn.Tanh()
-        )
+
         utilis.initialize_weights(self)
 
 
     def forward(self, input):
         x = self.fc(input)
-        x = x.view(-1,128,(self.input_size//4),(self.input_size)//4)
-        x = self.deconv(x)
         return x
 
 class discriminator(nn.Module):
@@ -50,30 +43,23 @@ class discriminator(nn.Module):
         self.output_dim = output_dim
         self.input_size = input_size
 
-        self.conv = nn.Sequential(
-            nn.Conv2d(self.input_dim,64,4,2,1),
-            nn.LeakyReLU(0.2) ,
-            nn.Conv2d(64,128,4,2,1),
-            nn.BatchNorm2d(128),
-            nn.LeakyReLU(0.2),
-        )
         self.fc = nn.Sequential(
-            nn.Linear(128 * (self.input_size//4)*(self.input_size//4),1024),
-            nn.BatchNorm1d(1024),
-            nn.LeakyReLU(0.2),
-            nn.Linear(1024,self.output_dim),
+            nn.Linear(2, 128),
+            nn.ReLU(),
+            nn.Linear(128,128),
+            nn.ReLU(),
+            nn.Linear(128, self.output_dim),
             nn.Sigmoid(),
         )
         utilis.initialize_weights(self)
 
     def forward(self,input):
-        x = self.conv(input)
-        x = x.view(-1,128*(self.input_size//4)*(self.input_size//4))
-        x = self.fc(x)
+
+        x = self.fc(input)
         return x
 
 
-class EGANMODEL(object):
+class EGAN_TOY(object):
     def __init__(self,args):
         #parameter
         self.epoch = args.epoch
@@ -86,6 +72,7 @@ class EGANMODEL(object):
         self.gpu_mode = args.gpu_mode
         self.model_name = args.gan_type
         self.input_size = args.input_size
+        self.datasize = 500
 
 
 
@@ -104,8 +91,8 @@ class EGANMODEL(object):
         data = self.data_loader.__iter__().__next__()[0]
 
         #network init
-        self.G = generator(input_dim=self.z_dim, output_dim=data.shape[1], input_size=self.input_size)
-        self.D = discriminator(input_dim=data.shape[1],output_dim=1, input_size=self.input_size)
+        self.G = generator(input_dim=self.z_dim, output_dim=2, input_size=self.input_size)
+        self.D = discriminator(input_dim=2,output_dim=1, input_size=self.input_size)
         self.G_optimizer = optim.Adam(self.G.parameters(),lr=args.lrG,betas=(args.beta1,args.beta2))
         self.D_optimizer = optim.Adam(self.D.parameters(),lr=args.lrD,betas=(args.beta1,args.beta2))
 
@@ -136,7 +123,7 @@ class EGANMODEL(object):
         print('-----------------------------------------------')
 
         # fixed noise
-        self.sample_z_ = torch.randn((self.batch_size,self.z_dim))
+        self.sample_z_ = torch.randn((self.datasize,self.z_dim))
         if self.gpu_mode:
             self.sample_z_= self.sample_z_.cuda()
 
@@ -147,7 +134,7 @@ class EGANMODEL(object):
             self.train_hist['per_epoch_time'] = []
             self.train_hist['total_time'] = []
 
-            self.y_real_, self.y_fake_ = torch.ones(self.batch_size, 1), torch.zeros(self.batch_size, 1)
+            self.y_real_, self.y_fake_ = torch.ones(self.datasize, 1), torch.zeros(self.datasize, 1)
             if self.gpu_mode:
                 self.y_real_, self.y_fake_ = self.y_real_.cuda(), self.y_fake_.cuda()
 
@@ -155,18 +142,20 @@ class EGANMODEL(object):
             print('training start!!')
             start_time = time.time()
             for epoch in range(self.epoch):
-                print('The epoch is ',epoch)
+                # print('The epoch is ',epoch)
                 self.G.train()
                 epoch_start_time = time.time()
-                for iter, (x_, _) in enumerate(self.data_loader):
-                    if iter == self.data_loader.dataset.__len__() // self.batch_size:
-                        break
-                    z_ = torch.randn((self.batch_size, self.z_dim))
-                    if self.gpu_mode:
-                        x_, z_ = x_.cuda(), z_.cuda()
+
+                data = self.toy_dataset('25gaussians',size=256)
+                x_ = torch.from_numpy(data).cuda()
+                z_ = torch.randn(self.datasize,self.z_dim).cuda()
 
 
-                    for i in range(2):
+
+
+
+
+                for i in range(2):
                         #update G
                         if i == 0:
                             self.Fitness,self.evalimgs,self.sel_mut = self.Evo_G(x_,z_)
@@ -178,49 +167,33 @@ class EGANMODEL(object):
 
                         else:
                             self.D_optimizer.zero_grad()
-                            self.gen_imgs = self.evalimgs[(i-1)*self.batch_size : i*self.batch_size,:,:,:].detach()
+                            self.gen_imgs = self.evalimgs[(i-1)*self.datasize : i*self.datasize,:].detach()
 
                             # print(self.evalimgs.size(),'evalimgs in else size')
                             # print(self.gen_imgs.size(),'gen imgs size')
 
 
                             self.real_out = self.D(x_)
-
-                            print(x_.size(),'x_ size is')
                             D_real_loss = self.BCE(self.real_out,self.y_real_)
                             self.fake_out = self.D(self.gen_imgs)
                             # print('D_fake is',D_fake.size())
                             D_fake_loss = self.BCE(self.fake_out,self.y_fake_)
                             D_loss = D_real_loss+D_fake_loss
+
                             D_loss.backward()
                             self.D_optimizer.step()
 
-                            self.train_hist['D_loss'].append(D_loss.item())
 
 
 
 
-                    if ((iter + 1) % 100) == 0:
-                        print(
 
-                              (epoch + 1), (iter + 1), self.data_loader.dataset.__len__() // self.batch_size)
-                self.train_hist['per_epoch_time'].append(time.time() - epoch_start_time)
+
                 with torch.no_grad():
-                    self.visualize_results((epoch + 1))
-
-            self.train_hist['total_time'].append(time.time() - start_time)
-            print( 'epoch',
-                    np.mean(self.train_hist['per_epoch_time']),
-                    self.epoch, self.train_hist['total_time'][0])
-            print("Training finish!... save training results")
+                    if epoch%100==0:
+                        self.generate_image((data))
 
 
-            self.save()
-            utilis.generate_animation(
-                        self.result_dir + '/' + self.dataset + '/' + self.model_name + '/' + self.model_name,
-                        self.epoch)
-            utilis.loss_plot(self.train_hist, os.path.join(self.save_dir, self.dataset, self.model_name),
-                                    self.model_name)
 
     def save(self):
             save_dir = os.path.join(self.save_dir, self.dataset, self.model_name)
@@ -278,6 +251,7 @@ class EGANMODEL(object):
 
 
     def fitness_score(self,eval_fake_imgs,eval_real_imgs):
+
         eval_fake = self.D(eval_fake_imgs)
         eval_real = self.D(eval_real_imgs)
 
@@ -293,7 +267,6 @@ class EGANMODEL(object):
         #Diversity fitness score
 
 
-        eval_D = eval_fake + eval_real
 
 
 
@@ -396,10 +369,82 @@ class EGANMODEL(object):
 
         return np.array(Fit_list),eval_fake_image_list,selectmutation
     #
-    # def set_requires_grad(self,nets,requires_grad = False):
+
+    def toy_dataset(self,DATASET='8gaussians', size=256):
+        if DATASET == '25gaussians':
+            dataset1 = []
+            for i in range(20):
+                for x in range(-2, 3):
+                    for y in range(-2, 3):
+                        point = np.random.randn(2) * 0.05
+                        point[0] += 2 * x
+                        point[1] += 2 * y
+                        dataset1.append(point)
+            dataset1 = np.array(dataset1, dtype='float32')
+            np.random.shuffle(dataset1)
+            dataset1 /= 2.828  # stdev
+
+        elif DATASET=='8gaussians':
+            scale =2
+            centers = [
+                (1, 0),
+                (-1, 0),
+                (0, 1),
+                (0, -1),
+                (1. / np.sqrt(2), 1. / np.sqrt(2)),
+                (1. / np.sqrt(2), -1. / np.sqrt(2)),
+                (-1. / np.sqrt(2), 1. / np.sqrt(2)),
+                (-1. / np.sqrt(2), -1. / np.sqrt(2))
+            ]
+            centers = [(scale * x, scale * y) for x, y in centers]
+            dataset1 = []
+            for i in range(size):
+                point = np.random.randn(2) * .02
+                center = random.choice(centers)
+                point[0] += center[0]
+                point[1] += center[1]
+                dataset1.append(point)
+            dataset1 = np.array(dataset1, dtype='float32')
+            dataset1 /= 1.414  # stdev
+        return dataset1
 
 
+    def generate_image(self,true_dist):
+        """
+        Generates and saves a plot of the true distribution, the generator, and the
+        critic.
+        """
+        N_POINTS = 128
+        RANGE = 3
 
+        points = np.zeros((N_POINTS, N_POINTS, 2), dtype='float32')
+        points[:, :, 0] = np.linspace(-RANGE, RANGE, N_POINTS)[:, None]
+        points[:, :, 1] = np.linspace(-RANGE, RANGE, N_POINTS)[None, :]
+        points = points.reshape((-1, 2))
 
+        plt.clf()
 
+        #true_dist = true_dist.cpu().data.numpy()
+        samples = self.G(self.sample_z_)
+        print('generate size is',samples.size())
+        samples = samples.cpu().data.numpy()
 
+        x = y = np.linspace(-RANGE, RANGE, N_POINTS)
+        # plt.contour(x, y, disc_map.reshape((len(x), len(y))).transpose())
+
+        plt.scatter(true_dist[:, 0], true_dist[:, 1], c='orange', marker='+')
+        plt.scatter(samples[:, 0], samples[:, 1], c='green', marker='+')
+        plt.show()
+
+    def set_requires_grad(self, nets, requires_grad=False):
+        """Set requies_grad=Fasle for all the networks to avoid unnecessary computations
+        Parameters:
+            nets (network list)   -- a list of networks
+            requires_grad (bool)  -- whether the networks require gradients or not
+        """
+        if not isinstance(nets, list):
+            nets = [nets]
+        for net in nets:
+            if net is not None:
+                for param in net.parameters():
+                    param.requires_grad = requires_grad

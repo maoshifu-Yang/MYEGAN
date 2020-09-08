@@ -18,9 +18,8 @@ class generator(nn.Module):
             nn.Linear(self.input_dim, 1024),
             nn.BatchNorm1d(1024),
             nn.ReLU(),
-            nn.Linear(1024, 500),
-            nn.BatchNorm1d(500),
-            nn.ReLU(),
+            nn.Linear(1024, 2),
+
         )
 
         utilis.initialize_weights(self)
@@ -73,6 +72,7 @@ class BEGAN_TOY(object):
         self.lambda_ = 0.001
         self.k = 0.0
         self.lr_lower_boundary = 0.00002
+        self.datasize = 256
 
         # load dataset
         self.data_loader = dataloader(self.dataset, self.input_size, self.batch_size)

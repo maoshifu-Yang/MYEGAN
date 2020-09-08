@@ -6,6 +6,8 @@ from dataloader import dataloader
 import matplotlib.pyplot as plt
 import random
 import copy
+from torch.autograd import grad
+from torch.nn import utils
 
 class generator(nn.Module):
     # Network Architecture is exactly same as in infoGAN (https://arxiv.org/abs/1606.03657)
@@ -18,9 +20,9 @@ class generator(nn.Module):
 
         self.fc = nn.Sequential(
             nn.Linear(self.input_dim, 128),
-            nn.Tanh(),
+            nn.ReLU(),
             nn.Linear(128,128),
-            nn.Tanh(),
+            nn.ReLU(),
             nn.Linear(128, 2),
 
         )
@@ -44,11 +46,15 @@ class discriminator(nn.Module):
 
         self.fc = nn.Sequential(
             nn.Linear(2, 128),
-            nn.ReLU(),
+            nn.LeakyReLU(0.2),
             nn.Linear(128,128),
-            nn.ReLU(),
+            nn.LeakyReLU(0.2),
+            nn.Linear(128,512),
+            nn.LeakyReLU(0.2),
+            nn.Linear(512,128),
+            nn.LeakyReLU(0.2),
             nn.Linear(128, self.output_dim),
-            nn.Sigmoid(),
+
         )
         # utilis.initialize_weights(self)
 
@@ -65,7 +71,7 @@ class discriminator(nn.Module):
                 if m_to.bias is not None:
                     m_to.bias.data = m_from.bias.data.clone()
 
-class GAN(object):
+class WGAN_TOY(object):
     def __init__(self, args):
         # parameters
         self.epoch = args.epoch
@@ -81,6 +87,7 @@ class GAN(object):
         self.z_dim = 62
         self.unrolled_step = 10
         self.datasize = 500
+        self.lambda_ = 1
 
         # load dataset
         self.data_loader = dataloader(self.dataset, self.input_size, self.batch_size)
@@ -124,6 +131,8 @@ class GAN(object):
 
         self.D.train()
         print('training start!!')
+
+
         start_time = time.time()
         for epoch in range(self.epoch):
             self.G.train()
@@ -142,37 +151,51 @@ class GAN(object):
 
             D_real = self.D(x_)
 
-            D_real_loss = self.BCE_loss(D_real, self.y_real_)
+            D_real_loss = -torch.mean(D_real)
 
             G_ = self.G(z_)
             D_fake = self.D(G_)
 
-            D_fake_loss = self.BCE_loss(D_fake, self.y_fake_)
+            D_fake_loss = torch.mean(D_fake)
 
-            D_loss = D_real_loss + D_fake_loss
+            alpah = torch.rand((self.datasize),1)
+            alpah = alpah.cuda()
+
+            x_hat = alpah * x_ + (1-alpah) * G_.data
+
+            x_hat.requires_grad = True
+
+            pred_hat = self.D(x_hat)
+
+            gradients = grad(outputs=pred_hat, inputs=x_hat, grad_outputs=torch.ones(pred_hat.size()).cuda(),
+                                         create_graph=True, retain_graph=True, only_inputs=True)[0]
+            gradient_penalty = self.lambda_ * ((gradients.view(gradients.size()[0], -1).norm(2, 1)-1 ) ** 2).mean()
+
+            D_loss = D_real_loss + D_fake_loss + gradient_penalty
             self.train_hist['D_loss'].append(D_loss.item())
 
             D_loss.backward()
             self.D_optimizer.step()
 
-                # update G network
+            # update G network
+
             self.G_optimizer.zero_grad()
 
-            if self.unrolled_step>0:
-                backup = copy.deepcopy(self.D)
-                for i in range(self.unrolled_step):
-                    self.d_unrolled_loop(d_gent_input=z_)
+                # if self.unrolled_step>0:
+                #     backup = copy.deepcopy(self.D)
+                #     for i in range(self.unrolled_step):
+                #         self.d_unrolled_loop(d_gent_input=z_)
             G_ = self.G(z_)
             D_fake = self.D(G_)
-            G_loss = self.BCE_loss(D_fake, self.y_real_)
+            G_loss = -torch.mean(D_fake)
             self.train_hist['G_loss'].append(G_loss.item())
 
             G_loss.backward()
             self.G_optimizer.step()
             #
-            if self.unrolled_step>0:
-                self.D.load(backup)
-                del backup
+            # if self.unrolled_step>0:
+            #     self.D.load(backup)
+            #     del backup
 
         #         if ((iter + 1) % 100) == 0:
         #             print("Epoch: [%2d] [%4d/%4d] D_loss: %.8f, G_loss: %.8f" %
@@ -321,4 +344,3 @@ class GAN(object):
         d_loss = d_real_error + d_fake_error
         d_loss.backward()
         self.D_optimizer.step()
-

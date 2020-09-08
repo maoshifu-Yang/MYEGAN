@@ -140,10 +140,11 @@ class WGAN_GP(object):
 
                     # update D network
                     self.D_optimizer.zero_grad()
-                    print(x_.size())
+                    print(x_.size(),'x 的')
+
 
                     D_real = self.D(x_)
-                    print(D_real)
+
                     D_real_loss = -torch.mean(D_real)
 
                     G_ = self.G(z_)
@@ -154,7 +155,7 @@ class WGAN_GP(object):
                     alpha = torch.rand((self.batch_size, 1, 1, 1))
                     if self.gpu_mode:
                         alpha = alpha.cuda()
-
+                    print('real out size is', G_.size(), 'alpha size is', alpha.size())
                     x_hat = alpha * x_.data + (1 - alpha) * G_.data
                     x_hat.requires_grad = True
 
